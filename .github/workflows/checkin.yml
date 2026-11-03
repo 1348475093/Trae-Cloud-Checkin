@@ -1,19 +1,34 @@
-name: Trae Daily Checkin
+
+name: Trae Work Cloud Checkin
 
 on:
   schedule:
-    # 北京时间每天 08:00（UTC 00:00）
-    - cron: "0 0 * * *"
-  workflow_dispatch: {}
+    # GitHub 使用 UTC 时间
+    # 北京时间 09:17
+    - cron: "17 1 * * *"
+    # 北京时间 13:17
+    - cron: "17 5 * * *"
+    # 北京时间 20:17
+    - cron: "17 12 * * *"
+
+  # 允许手动触发
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: trae-daily-checkin
+  cancel-in-progress: false
+
 jobs:
   checkin:
+    name: Daily Checkin
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup Python
@@ -21,15 +36,25 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Run checkin
+      - name: Verify configuration
+        env:
+          TRAE_SESSION: ${{ secrets.TRAE_SESSION }}
+        run: |
+          if [ -z "$TRAE_SESSION" ]; then
+            echo "::error::TRAE_SESSION is missing"
+            exit 1
+          fi
+          echo "Configuration found"
+
+      - name: Run Trae Work Checkin
         env:
           TRAE_SESSION: ${{ secrets.TRAE_SESSION }}
           TRAE_DEVICE_ID: ${{ secrets.TRAE_DEVICE_ID }}
-          TRAE_SESSION_2: ${{ secrets.TRAE_SESSION_2 }}
-          TRAE_DEVICE_ID_2: ${{ secrets.TRAE_DEVICE_ID_2 }}
-          TRAE_SESSION_3: ${{ secrets.TRAE_SESSION_3 }}
-          TRAE_DEVICE_ID_3: ${{ secrets.TRAE_DEVICE_ID_3 }}
-          TRAE_SESSION_4: ${{ secrets.TRAE_SESSION_4 }}
-          TRAE_DEVICE_ID_4: ${{ secrets.TRAE_DEVICE_ID_4 }}
-          FEISHU_WEBHOOK: ${{ secrets.FEISHU_WEBHOOK }}
         run: python checkin.py
+
+      - name: Report failure
+        if: failure()
+        run: |
+          echo "::error::Trae Work checkin failed"
+          echo "Check the logs and update Secrets if expired"
+          exit 1
